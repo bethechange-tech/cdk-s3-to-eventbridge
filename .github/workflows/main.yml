@@ -1,0 +1,147 @@
+name: Deploy AWS CDK
+# Controls when the action will run. 
+on:
+  push:
+    branches:
+      # - 'main'
+      - 'feature**'
+      - 'deploy**'
+  delete:
+    branches:
+      - 'feature**'
+
+  pull_request:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch: {}
+
+jobs:
+  install_npm_packages:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+
+    - name: Cache NPM dependencies
+      uses: actions/cache@v3
+      with:
+        path: .
+        key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.OS }}-npm-cache-
+
+    - name: Install NPM dependencies
+      run: 'sudo apt update -y && sudo apt install nodejs npm -y && npm install'
+
+  test_all:
+    runs-on: ubuntu-latest
+    needs: [install_npm_packages]
+    steps:
+      - uses: actions/cache@v3
+        with:
+          path: .
+          key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+
+      - name: generate graphql types to typescript
+        run: npm run codegen
+
+      - name: NPM TEST
+        run: 'npm run test'
+
+  delete-feature:
+    if: startsWith(github.ref, 'refs/heads/feature')
+    runs-on: ubuntu-latest
+    needs: [test_all]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - uses: actions/cache@v3
+        with:
+          path: .
+          key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install AWS CDK
+        run: 'sudo npm install -g aws-cdk'
+
+      - name: CDK Destroy
+        run: cdk destroy --require-approval never
+        working-directory: .
+
+  deploy_to_dev:
+    if: startsWith(github.ref, 'refs/heads/feature')
+    runs-on: ubuntu-latest
+    needs: [test_all]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - uses: actions/cache@v3
+        with:
+          path: .
+          key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install AWS CDK
+        run: 'sudo npm install -g aws-cdk'
+
+      - name: CDK Synth
+        run: cdk synth
+        working-directory: .
+
+      - name: CDK Bootstrap
+        run: cdk bootstrap
+        working-directory: .
+
+      - name: CDK Deploy
+        run: cdk deploy --require-approval never
+        working-directory: .
+
+  deploy_to_prod:
+    if: github.ref == 'refs/heads/deploy'
+    runs-on: ubuntu-latest
+    needs: [test_all]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - uses: actions/cache@v3
+        with:
+          path: .
+          key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+
+      - name: generate graphql types to typescript
+        run: npm run codegen
+
+      - name: Install AWS CDK
+        run: 'sudo npm install -g aws-cdk'
+
+      - name: CDK Synth
+        run: cdk synth
+        working-directory: .
+
+      - name: CDK Bootstrap
+        run: cdk bootstrap
+        working-directory: .
+
+      - name: CDK Deploy
+        run: cdk deploy --require-approval never
+        working-directory: .

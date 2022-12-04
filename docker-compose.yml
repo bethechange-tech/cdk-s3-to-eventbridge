@@ -1,0 +1,44 @@
+version: '3.1'
+# https://hub.docker.com/r/koxudaxi/local-data-api
+services:
+  local-data-api:
+    image: koxudaxi/local-data-api
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      ENGINE: PostgreSQLJDBC
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: example
+      RESOURCE_ARN: 'arn:aws:rds:us-east-1:123456789012:cluster:dummy'
+      SECRET_ARN: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy'
+    ports:
+      - "8080:80"
+  db:
+    image: postgres:10.7-alpine
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./initdb/postgres:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: test
+    ports:
+        - "5432:5432"
+  redis:
+    image: redis:6.0
+    volumes:
+      - ./data:/data
+    ports:
+      - '6379:6379'
+
+volumes:
+  nfsmount:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=addr=host.docker.internal,rw,nolock,hard,nointr,nfsvers=3
+      device: ":${PWD}"

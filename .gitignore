@@ -1,0 +1,24 @@
+*.js
+!jest.config.js
+node_modules
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+coverage
+data
+build
+bundle/
+dist
+dist-lambdas
+*dist/
+
+*initdb/
+
+.build
+.dist
+
+*.toml
+samconfig.toml
+
+logfile.txt

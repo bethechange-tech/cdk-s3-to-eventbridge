@@ -1,0 +1,17 @@
+{
+  "createDb": {
+    "driver": "pg",
+    "host": {"ENV": "RDS_HOST"},
+    "user": {"ENV": "RDS_USER"},
+    "password": {"ENV": "RDS_PASS"},
+    "multipleStatements": true
+  },
+  "dev": {
+    "driver": "pg",
+    "host": {"ENV": "RDS_HOST"},
+    "user": {"ENV": "RDS_USER"},
+    "password": {"ENV": "RDS_PASS"},
+    "database": {"ENV": "RDS_NAME"},
+    "multipleStatements": true
+  }
+}
