@@ -9,7 +9,7 @@ import { EventBus, Rule } from 'aws-cdk-lib/aws-events';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as cwLogs from 'aws-cdk-lib/aws-logs';
 
-import { Stack, StackProps, RemovalPolicy, CfnOutput, Duration } from 'aws-cdk-lib';
+import { Stack, StackProps, RemovalPolicy, CfnOutput, Duration, CfnParameter } from 'aws-cdk-lib';
 import { getFunctionProps, apiEndpointKeys, API_ENPOINTS } from './config/lambda-config';
 
 import type { CDKContext } from '../shared/types';
@@ -198,7 +198,6 @@ export class CDKS3Stack extends Stack {
     );
 
     imageResizeLambdaFunction.addEnvironment('bucketName', bucket.bucketName);
-
     bucket.grantReadWrite(imageResizeLambdaFunction);
 
     imageResizeLambdaFunction.role?.attachInlinePolicy(
@@ -234,6 +233,63 @@ export class CDKS3Stack extends Stack {
         retryAttempts: 3, // Optional: set the max number of retry attempts
       })
     );
+
+    //////////////////////////////////////////
+    /// AI IMAGE GENERATOR WITH OPENAI
+    /////////////////////////////////////////
+
+    const openAiImageGeneratorDefinition = {
+      name: 'image-generator-openAI-lambda',
+      isPrivate: false,
+      methods: ['POST'],
+    };
+
+    // Get function props based on lambda definition
+    const openAiImageGeneratorLambdaFunctionProps = getFunctionProps(
+      openAiImageGeneratorDefinition,
+      lambdaRole,
+      lambdaLayer,
+      this.context
+    );
+
+    const openAiImageGeneratorLambdaFunction = new NodejsFunction(
+      this,
+      `${openAiImageGeneratorDefinition.name}-function`,
+      openAiImageGeneratorLambdaFunctionProps
+    );
+
+    openAiImageGeneratorLambdaFunction.addEnvironment(
+      'OPENAI_API_KEY',
+      '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'
+    );
+
+    openAiImageGeneratorLambdaFunction.addPermission('PermitAPIGInvocation', {
+      principal: new ServicePrincipal('apigateway.amazonaws.com'),
+      sourceArn: restApi.arnForExecuteApi('*'),
+    });
+
+    openAiImageGeneratorLambdaFunction.role?.attachInlinePolicy(
+      new iam.Policy(this, 'lambda-policy-openAi', {
+        statements: [cloudWatchLogsPolicy, ec2Policy],
+      })
+    );
+
+    const openAiImageGeneratorLambdaEndpoint = restApi.root.addResource('openai');
+
+    openAiImageGeneratorLambdaEndpoint
+      .addResource('generateimage')
+      .addMethod(
+        openAiImageGeneratorDefinition.methods[0],
+        new apigateway.LambdaIntegration(openAiImageGeneratorLambdaFunction),
+        {}
+      );
+
+    // Create corresponding Log Group with one month retention
+    new cwLogs.LogGroup(this, `fn-${openAiImageGeneratorDefinition.name}-log-group`, {
+      logGroupName: `/aws/lambda/${this.context.appName}-${openAiImageGeneratorDefinition.name}-${this.context.currentBranch}`,
+      retention: cwLogs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
 
     // Create corresponding Log Group with one month retention
     new cwLogs.LogGroup(this, `fn-${imageUploadDefinition.name}-log-group`, {

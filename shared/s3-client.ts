@@ -69,7 +69,9 @@ export class S3Client {
       logger.info('attempting getObject', {
         data,
       });
+
       data = await this.s3Client.getObject(params).promise();
+
       logger.info('success got file from s3 bucket');
     } catch (error) {
       logger.error('getObject error', { error });

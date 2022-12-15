@@ -3,7 +3,6 @@ import { LambdaDefinition, CDKContext } from '../../shared/types';
 import { NodejsFunctionProps } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
 
 // Constants
 const DEFAULT_LAMBDA_MEMORY_MB = 1024;
@@ -14,22 +13,6 @@ export enum API_ENPOINTS {
 }
 
 export const apiEndpointKeys = Object.values(API_ENPOINTS);
-
-// Returns lambda definitions with custom env
-export const getLambdaDefinitions = (): LambdaDefinition[] => {
-  const environment = {};
-
-  const lambdaDefinitions: LambdaDefinition[] = [
-    {
-      name: 'upload-lambda',
-      environment,
-      isPrivate: false,
-      methods: ['POST'],
-      endpoint: API_ENPOINTS.UPLOAD,
-    },
-  ];
-  return lambdaDefinitions;
-};
 
 // Returns Lambda Function properties with defaults and overwrites
 export const getFunctionProps = (
