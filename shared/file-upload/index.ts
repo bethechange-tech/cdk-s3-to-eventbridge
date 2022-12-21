@@ -2,11 +2,21 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
 import jimp from 'jimp';
 import crypto from 'crypto';
 import logger from '../logger';
-import { ACL_OPTIONS, IParse, S3Client } from '../s3-client';
+import { ACL_OPTIONS, IParse } from '../s3-client';
+import { storageBucketAdapter } from '../adapters/BucketAdapter/IBucketAdapter';
+import BucketAdapter, { FileFormat } from '../adapters/BucketAdapter/BucketAdapter';
+import Jimp from 'jimp';
 
-export class FileUpload extends S3Client {
-  constructor() {
-    super();
+export enum FilesFormat {
+  PDF = 'pdf',
+  PNG = 'png',
+}
+
+export class FileUpload {
+  private s3Client: BucketAdapter;
+
+  constructor(bucketAdapter: BucketAdapter) {
+    this.s3Client = bucketAdapter;
   }
 
   private static getBoundary(headers: APIGatewayProxyEvent['headers']) {
@@ -19,6 +29,27 @@ export class FileUpload extends S3Client {
     );
 
     return object[foundKey];
+  }
+
+  public async hashFile({
+    jimpImage,
+    width,
+    height,
+    mime,
+  }: {
+    jimpImage: Jimp;
+    width: number;
+    height: number;
+    mime: string;
+  }) {
+    const resizedImageBase64 = await jimpImage
+      .scaleToFit(width, height)
+      .quality(90)
+      .getBase64Async(mime);
+
+    logger.info('image to buffer complete ...');
+
+    return crypto.createHash('md5').update(resizedImageBase64).digest('hex');
   }
 
   public resizeImage = async ({
@@ -34,7 +65,7 @@ export class FileUpload extends S3Client {
   }) => {
     logger.info('image resize begins...');
 
-    const imageBuffer = await this.get({ Key, Bucket });
+    const imageBuffer = await this.s3Client.get(Key);
     logger.info('successfully got image from s3');
 
     const jimpImage = await jimp.read(imageBuffer?.Body);
@@ -56,7 +87,12 @@ export class FileUpload extends S3Client {
 
     const imageExtention = mime.split('/')[1];
 
-    const hashedFile = crypto.createHash('md5').update(new Uint8Array(imageBuffer)).digest('hex');
+    const hashedFile = await this.hashFile({
+      jimpImage,
+      width,
+      height,
+      mime,
+    });
 
     const newFileName = `resized/${width}x${height}/${hashedFile}.${imageExtention}`;
 
@@ -70,15 +106,15 @@ export class FileUpload extends S3Client {
       },
     });
 
-    await this.write({
-      Body: resizedImageBuffer,
-      Bucket,
-      Key: newFileName,
-      ACL: ACL_OPTIONS.PUBLIC_READ,
-      ContentType: mime,
+    const response = await this.s3Client.upload({
+      data: resizedImageBuffer,
+      fileName: newFileName,
+      extension: mime as FileFormat,
     });
 
-    logger.info('image resize complete ....');
+    logger.info('image resize complete ....', {
+      response,
+    });
 
     return newFileName;
   };

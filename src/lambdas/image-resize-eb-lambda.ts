@@ -1,6 +1,7 @@
 import { EventBridgeEvent } from 'aws-lambda';
 import logger from '/opt/logger';
 import { FileUpload } from '/opt/file-upload';
+import { storageBucketAdapter } from '/opt/adapters/BucketAdapter/IBucketAdapter';
 
 export const handler = async function (
   event: EventBridgeEvent<string, Record<string, any>>
@@ -13,16 +14,17 @@ export const handler = async function (
   try {
     const width = 300;
     const height = 300;
-    const fileUpload = new FileUpload();
+
+    const bucketAdapter = storageBucketAdapter();
+
+    const fileUpload = new FileUpload(bucketAdapter);
     const newFileName = await fileUpload.resizeImage({ Bucket, Key, width, height });
 
     logger.info('upload and resized images successfully', {
       newFileName,
     });
-
-    logger.info('successfully resized images');
   } catch (err) {
-    const error = err as Record<string, any>;
+    const error = err as Error;
     logger.error('error in try catch', error);
   }
 };

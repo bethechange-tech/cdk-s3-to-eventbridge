@@ -1,16 +1,24 @@
 import PromisePool from '@supercharge/promise-pool/dist';
+
 import AWS from 'aws-sdk';
 
-import AWSMock = require('mock-aws-s3');
-import crypto = require('crypto');
+import AWSMock from 'mock-aws-s3';
+import crypto from 'crypto';
 
 import * as fileType from 'file-type';
 
-import { IS_TEST_MODE } from './test-mode';
 import { chunk, flatten } from 'lodash';
+import core from 'file-type/core';
+
+import { IS_TEST_MODE } from './test-mode';
+
 import logger from '/opt/logger';
+
 import { redactCustomerDetails } from '/opt/RedactCustomerDetails';
-import core = require('file-type/core');
+
+import { HTTP_STATUS_CODE } from './HTTP_STATUS_CODE';
+
+import AppError from './appError';
 
 export const s3Path = IS_TEST_MODE
   ? '/tmp/buckets/'
@@ -121,11 +129,11 @@ export class S3Client {
       })
       .process(async (imageBody) => {
         if (!imageBody.image || !imageBody.mime) {
-          throw new Error();
+          throw new AppError('', HTTP_STATUS_CODE.BAD_REQUEST);
         }
 
         if (!allowedMimes.includes(imageBody.mime)) {
-          throw new Error();
+          throw new AppError('', HTTP_STATUS_CODE.BAD_REQUEST);
         }
 
         let image = imageBody.image;
